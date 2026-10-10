@@ -1,42 +1,45 @@
-# fin-proto-sse-bin-c
+# fin-proto-szse-bin-c
 
-上交所(step)二进制行情协议 Ver1.29 的 C11 消息库,基于
-[fin-proto-runtime-bin-c](../fin-proto-runtime-bin-c) 运行时。
-对应 Rust 版本:[fin-proto-szse-bin-rs](https://github.com/xinchentechnote/fin-proto-sse-bin-rs)。
+深交所 Binary 交易数据接口规范 Ver1.29 的 C11 消息库,基于
+[fin-proto-runtime-bin-c](https://github.com/xinchentechnote/fin-proto-runtime-bin-c) 运行时。
+对应 Rust 版本:[fin-proto-szse-bin-rs](https://github.com/xinchentechnote/fin-proto-szse-bin-rs)。
 
 `src/` 下的全部 `.h/.c` 文件由 [fin-protoc](https://github.com/xinchentechnote/fin-protoc)
-从 `proto/sse_bin_Ver1.29.pdsl` 生成(`-C` 指定输出目录),请勿手改:
+从 `proto/szse_bin_v1.29.pdsl` 生成(`-C` 指定输出目录),请勿手改:
 
 ```bash
-make compile    # fin-protoc -f proto/sse_bin_Ver1.29.pdsl -C src/
+make compile    # fin-protoc -f proto/szse_bin_v1.29.pdsl -C src/
 ```
 
 ## 线上格式(全部大端)
 
 ```
-SseBinary:
-┌──────────────┬────┬────────────────────────────────────────────────┐
-│ MsgType u32  │ 4B │ 消息类型,决定 Body 的具体消息                      │
-│ MsgSeqNum u64│ 8B │ 序列号                                          │
-│ MsgBodyLen u32│ 4B│ Body 字节数(不含头部与校验和)                     │
-│ Body         │变长│ 24 种 Body 消息(含多值列表键与 ApplExtend 字符串多态)之一,字段全部定长                         │
-│ Checksum u32 │ 4B │ SSE_BIN 算法(除校验和外全部字节累加和 & 0xFF)      │
-└──────────────┴────┴────────────────────────────────────────────────┘
+SzseBinary:
+┌───────────────┬────┬────────────────────────────────────────────────┐
+│ MsgType u32   │ 4B │ 消息类型,决定 Body 的具体消息                     │
+│ BodyLength u32│ 4B │ Body 字节数(不含头部与校验和)                    │
+│ Body          │变长│ 14 种 Body 消息之一(部分 MsgType 为多值列表键),   │
+│               │    │ 字段全部定长                                     │
+│ Checksum i32  │ 4B │ SZSE_BIN 算法(i32 字节和 mod 256)               │
+└───────────────┴────┴────────────────────────────────────────────────┘
 ```
 
-C 版以 `kind` 枚举 + 匿名 union 表达 match 多态:
+NewOrder、ExecutionConfirm、ExecutionReport 内部还按 `ApplID` 字符串 match 选择
+ExtendNNNNNN 扩展体(字符串多态)。
+
+C 版以 `kind` 枚举 + 匿名 union 表达 match 多态(嵌套的 ApplExtend 同理):
 
 ```c
-sse_binary_sse_binary msg;
+szse_binary_szse_binary msg;
 memset(&msg, 0, sizeof(msg));
-msg.body_tag = SSE_BINARY_BODY_LOGON;
+msg.body_tag = SZSE_BINARY_BODY_LOGON;
 msg.body.logon.sender_comp_id = FC_STR("SENDER");
 ```
 
 ## 使用
 
 ```bash
-make test      # 生成代码自带的 round-trip 测试(每个消息一个)
+make test      # 生成代码自带的 round-trip 测试(每个消息及扩展体一个)
 make bench     # 与 Rust/Zig 同口径的编解码基准
 ```
 
